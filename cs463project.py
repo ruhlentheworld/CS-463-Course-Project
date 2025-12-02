@@ -1,5 +1,6 @@
 import time
 import tracemalloc
+import gc
 from Crypto.Cipher import AES
 import ascon
 from simon import SimonCipher
@@ -7,7 +8,7 @@ from speck import SpeckCipher
 import matplotlib.pyplot as plt
 
 message_sizes = [64, 256, 1024, 4096]
-runs = 5
+runs = 6
 
 key_aes = b"thequickbrownfox"
 key_ascon = b"thequickbrownfox"
@@ -16,8 +17,8 @@ key_speck = int.from_bytes(b"thequickbrownfox"[:8], "big")
 nonce = b"andthreelazydogs"
 block_size_bytes = 8
 
-
 def measure_peak(func):
+    gc.collect()
     tracemalloc.start()
     start_time = time.perf_counter()
     func()
@@ -38,7 +39,6 @@ def run_aes(size):
     times, mem = [], []
 
     for run in range(1, runs + 1):
-        print(f"Run {run}")
         message = (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
 
         def task():
@@ -48,18 +48,19 @@ def run_aes(size):
             assert pt == message
 
         runtime, peak_mb = measure_peak(task)
-        times.append(runtime)
-        mem.append(peak_mb)
-        print(f"  Time {runtime:.6f} sec | Mem {peak_mb:.6f} MB")
+
+        if run > 1:
+            times.append(runtime)
+            mem.append(peak_mb)
+            print(f"Run {run-1}")
+            print(f"  Time {runtime:.6f} sec | Mem {peak_mb:.6f} MB")
 
     return times, mem
-
 
 def run_ascon(size):
     times, mem = [], []
 
     for run in range(1, runs + 1):
-        print(f"Run {run}")
         message = (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
 
         def task():
@@ -68,18 +69,19 @@ def run_ascon(size):
             assert pt == message
 
         runtime, peak_mb = measure_peak(task)
-        times.append(runtime)
-        mem.append(peak_mb)
-        print(f"  Time {runtime:.6f} sec | Mem {peak_mb:.6f} MB")
+        
+        if run > 1:
+            times.append(runtime)
+            mem.append(peak_mb)
+            print(f"Run {run-1}")
+            print(f"  Time {runtime:.6f} sec | Mem {peak_mb:.6f} MB")
 
     return times, mem
-
 
 def run_simon(size):
     times, mem = [], []
 
     for run in range(1, runs + 1):
-        print(f"Run {run}")
         message = (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
 
         def task():
@@ -95,18 +97,19 @@ def run_simon(size):
             assert out == message
 
         runtime, peak_mb = measure_peak(task)
-        times.append(runtime)
-        mem.append(peak_mb)
-        print(f"  Time {runtime:.6f} sec | Mem {peak_mb:.6f} MB")
+        
+        if run > 1:
+            times.append(runtime)
+            mem.append(peak_mb)
+            print(f"Run {run-1}")
+            print(f"  Time {runtime:.6f} sec | Mem {peak_mb:.6f} MB")
 
     return times, mem
-
 
 def run_speck(size):
     times, mem = [], []
 
     for run in range(1, runs + 1):
-        print(f"Run {run}")
         message = (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
 
         def task():
@@ -122,9 +125,12 @@ def run_speck(size):
             assert out == message
 
         runtime, peak_mb = measure_peak(task)
-        times.append(runtime)
-        mem.append(peak_mb)
-        print(f"  Time {runtime:.6f} sec | Mem {peak_mb:.6f} MB")
+        
+        if run > 1:
+            times.append(runtime)
+            mem.append(peak_mb)
+            print(f"Run {run-1}")
+            print(f"  Time {runtime:.6f} sec | Mem {peak_mb:.6f} MB")
 
     return times, mem
 
@@ -163,8 +169,8 @@ for size in message_sizes:
             max(mem) * 1_000_000
         )
 
-        avg_time = sum(times) / runs
-        avg_mem = sum(mem) / runs
+        avg_time = sum(times) / (runs-1)
+        avg_mem = sum(mem) / (runs-1)
 
         print("-" * 82)
         print_avg(cipher_name, size, avg_time, avg_mem)
@@ -200,8 +206,6 @@ for size in message_sizes:
         name, ratio, avg_time, avg_mem = item
         print(f"{rank:<6} {name:<10} {avg_time:10.6f} sec {avg_mem:10.6f} MB {ratio:14.6f} MB/sec")
 
-
-
 print("\n" + "*" * 82)
 print("Cipher Totals & Efficiency Ratios (across all sizes, combined runs)")
 print("*" * 82)
@@ -232,5 +236,56 @@ for i, (name, _, _, ratio) in enumerate(ranked, 1):
 
 tracemalloc.stop()
 
+ciphers = ["AES-128", "Ascon", "Simon", "Speck"]
 
+times_plot = {cipher: [] for cipher in ciphers}
+mem_plot   = {cipher: [] for cipher in ciphers}
+ratio_plot = {cipher: [] for cipher in ciphers}
 
+for size in message_sizes:
+    for cipher in ciphers:
+        t = per_size_results[size][cipher]["avg_time"]
+        m = per_size_results[size][cipher]["avg_mem"]
+        r = m / t if t > 0 else float("inf")
+        times_plot[cipher].append(t)
+        mem_plot[cipher].append(m)
+        ratio_plot[cipher].append(r)
+
+plt.figure(figsize=(10,6))
+for cipher in ciphers:
+    plt.plot(message_sizes, times_plot[cipher], marker='o', label=cipher)
+
+plt.xlabel("Message Size (bytes)")
+plt.ylabel("Average Runtime (seconds)")
+plt.title("Cipher Runtime vs Message Size")
+plt.grid(True)
+plt.legend()
+plt.xticks(message_sizes)
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(10,6))
+for cipher in ciphers:
+    plt.plot(message_sizes, mem_plot[cipher], marker='o', label=cipher)
+
+plt.xlabel("Message Size (bytes)")
+plt.ylabel("Average Memory Used (MB)")
+plt.title("Cipher Memory Usage vs Message Size")
+plt.grid(True)
+plt.legend()
+plt.xticks(message_sizes)
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(10,6))
+for cipher in ciphers:
+    plt.plot(message_sizes, ratio_plot[cipher], marker='o', label=cipher)
+
+plt.xlabel("Message Size (bytes)")
+plt.ylabel("Efficiency Ratio (MB / sec)")
+plt.title("Cipher Efficiency Ratio vs Message Size")
+plt.grid(True)
+plt.legend()
+plt.xticks(message_sizes)
+plt.tight_layout()
+plt.show()
