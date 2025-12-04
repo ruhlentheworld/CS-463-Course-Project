@@ -16,6 +16,8 @@ key_simon = int.from_bytes(b"thequickbrownfox"[:8], "big")
 key_speck = int.from_bytes(b"thequickbrownfox"[:8], "big")
 nonce = b"andthreelazydogs"
 block_size_bytes = 8
+def the_message(size):
+    return (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
 
 def measure_peak(func):
     gc.collect()
@@ -37,10 +39,9 @@ def print_total(cipher, tottime, peak_bytes):
 
 def run_aes(size):
     times, mem = [], []
+    message = the_message(size)
 
     for run in range(1, runs + 1):
-        message = (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
-
         def task():
             cipher = AES.new(key_aes, AES.MODE_ECB)
             ct = cipher.encrypt(message.ljust((len(message)//16 + 1)*16, b'\0'))
@@ -59,10 +60,9 @@ def run_aes(size):
 
 def run_ascon(size):
     times, mem = [], []
+    message = the_message(size)
 
     for run in range(1, runs + 1):
-        message = (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
-
         def task():
             ct = ascon.encrypt(key_ascon, nonce, b"", message, variant="Ascon-128")
             pt = ascon.decrypt(key_ascon, nonce, b"", ct, variant="Ascon-128")
@@ -80,10 +80,9 @@ def run_ascon(size):
 
 def run_simon(size):
     times, mem = [], []
+    message = the_message(size)
 
     for run in range(1, runs + 1):
-        message = (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
-
         def task():
             cipher = SimonCipher(key_simon)
             blocks = []
@@ -108,10 +107,9 @@ def run_simon(size):
 
 def run_speck(size):
     times, mem = [], []
+    message = the_message(size)
 
     for run in range(1, runs + 1):
-        message = (b"jumpedoverazebra" * ((size // 16) + 1))[:size]
-
         def task():
             cipher = SpeckCipher(key_speck)
             blocks = []
